@@ -1,10 +1,8 @@
 dataset*
-outdated.ipynb
 reference_genome.fasta
 results
 .ipynb_checkpoints
-font
 script.py
-exo.sam
-exo.bam
+exoiii_dataset/exo.sam
+exoiii_dataset/exo.bam
 
