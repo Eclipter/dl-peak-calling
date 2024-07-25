@@ -1,5 +1,5 @@
 dataset*
-reference_genome.fasta
+reference_genome.fasta.gz
 results
 .ipynb_checkpoints
 script.py
