@@ -8,7 +8,7 @@ from lightning.pytorch.core import LightningModule
 class WeightedBCELoss():
     def __call__(self, y_proba, y_true, batch_size):
         # Calculate weights to penalize predictions quadratically
-        indices = torch.arange(200, dtype=torch.float32).repeat(batch_size, 1).to(device)
+        indices = torch.arange(y_proba.shape[1], dtype=torch.float32).repeat(batch_size, 1).to(device)
         dyad_indices = y_true.unsqueeze(1).to(device)
         weights = F.mse_loss(indices, dyad_indices, reduction='none')
 
@@ -25,7 +25,7 @@ class WeightedBCELoss():
 class WeightedMSELoss():
     def __call__(self, y_proba, y_true, batch_size):
         # Create tensors to caluclate loss between
-        indices = torch.arange(200, dtype=torch.float32).repeat(batch_size, 1).to(device)
+        indices = torch.arange(y_proba.shape[1], dtype=torch.float32).repeat(batch_size, 1).to(device)
         dyad_indices = y_true.unsqueeze(1).to(device)
 
         # Calculate loss
@@ -55,20 +55,21 @@ class BiGRU(LightningModule):
         ):
         super().__init__()
         
-        ngram_symbol_num = {
+        str_to_idx = {
             'default': 1,
             'bigram': 2,
             'trigram': 3
         }
+        self.ngram_symbol_num = str_to_idx[dataset_prefix]
         
         self.bigru = nn.GRU(
-            input_size=4**ngram_symbol_num[dataset_prefix],
+            input_size=4**self.ngram_symbol_num,
             hidden_size=hidden_size,
             num_layers=num_layers,
             batch_first=True,
             bidirectional=True
         ) # (batch_size, length, hidden_size * 2)
-        self.fc = nn.Linear(hidden_size * 2, 1) # (batch_size, 200)
+        self.fc = nn.Linear(hidden_size * 2, 1) # (batch_size, length)
         
         self.loss_fn = eval(loss_fn)()
         self.lr = lr
@@ -83,7 +84,7 @@ class BiGRU(LightningModule):
         
         self.save_hyperparameters()
         
-        self.f1_scorer = torchmetrics.F1Score(task='multilabel', num_labels=200)
+        self.f1_scorer = torchmetrics.F1Score(task='multilabel', num_labels=201-self.ngram_symbol_num)
         
         self.train_loss, self.val_loss, self.test_loss = [], [], []
         self.train_preds, self.val_preds, self.test_preds = [], [], []

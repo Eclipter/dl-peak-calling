@@ -1,5 +1,5 @@
 import torch
-import config
+from config import config
 from model import BiGRU
 from dataset import DataModule
 from callbacks import TimeLogger
@@ -11,7 +11,7 @@ from ray.tune.integration.pytorch_lightning import TuneReportCallback
 torch.set_float32_matmul_precision('medium')
 
 
-def main(config):
+def main():
     logger = CSVLogger(
         save_dir='results',
         name=None,
@@ -32,9 +32,9 @@ def main(config):
     )
     data_module = DataModule(
         dataset_number=config['DATASET_NUMBER'],
-        dataset_prefix=config['DATASET_PREFIXv,
+        dataset_prefix=config['DATASET_PREFIX'],
         batch_size=config['BATCH_SIZE'],
-        num_workers=config['NUM_WORKERSv
+        num_workers=config['NUM_WORKERS']
     )
     metrics = {'loss': 'val_loss', 'f1': 'val_f1'}
     trainer = Trainer(
@@ -49,8 +49,7 @@ def main(config):
                 patience=5
             ),
             RichProgressBar(),
-            TimeLogger(logger),
-            TuneReportCallback(metrics, on='validation_end')
+            TimeLogger(logger)
         ],
         enable_model_summary=False
     )
@@ -58,4 +57,4 @@ def main(config):
     trainer.fit(model, data_module)
 
 if __name__ == '__main__':
-    main(config)
+    main()
