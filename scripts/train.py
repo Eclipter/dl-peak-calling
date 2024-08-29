@@ -1,60 +1,98 @@
+import os
+import shutil
 import torch
-from config import config
+
+from config import *
 from model import BiGRU
 from dataset import DataModule
-from callbacks import TimeLogger
-from lightning.pytorch.callbacks import EarlyStopping, RichProgressBar
-from lightning.pytorch.loggers import CSVLogger
+
 from lightning.pytorch.trainer.trainer import Trainer
-from ray.tune.integration.pytorch_lightning import TuneReportCallback
+from lightning.pytorch.callbacks.early_stopping import EarlyStopping
 
-torch.set_float32_matmul_precision('medium')
+from ray import init
+from ray.tune import Tuner, TuneConfig
+from ray.train.torch import TorchTrainer
+from ray.train import RunConfig, ScalingConfig, CheckpointConfig
+from ray.train.lightning import RayTrainReportCallback
+
+project_path = os.path.abspath('..')
+
+# Change the directory for ray cache
+init(_temp_dir=os.path.join(os.path.expanduser('~'), '_scratch', 'tmp'))
 
 
-def main():
-    logger = CSVLogger(
-        save_dir='results',
-        name=None,
-        version=config['RUN_NAME']
+def train_fn(config):
+    torch.set_float32_matmul_precision('medium')
+    
+    early_stopping = EarlyStopping(
+        monitor='val_loss',
+        min_delta=0.001,
+        patience=5
     )
+    datamodule = DataModule(
+        config,
+        project_path
+    )
+    datamodule.setup('train')
     model = BiGRU(
-        dataset_prefix=config['DATASET_PREFIX'],
-        hidden_size=config['HIDDEN_SIZE'],
-        num_layers=config['NUM_LAYERS'],
-        lr=config['LR'],
-        weight_decay=config['WEIGHT_DECAY'],
-        loss_fn=config['LOSS_FN'],
-        optimizer=config['OPTIMIZER'],
-        dataset_number=config['DATASET_NUMBER'],
-        batch_size=config['BATCH_SIZE'],
-        num_workers=config['NUM_WORKERS'],
-        num_epochs=config['NUM_EPOCHS']
+        config=config,
+        mean_target_length=datamodule.mean_target_length
     )
-    data_module = DataModule(
-        dataset_number=config['DATASET_NUMBER'],
-        dataset_prefix=config['DATASET_PREFIX'],
-        batch_size=config['BATCH_SIZE'],
-        num_workers=config['NUM_WORKERS']
-    )
-    metrics = {'loss': 'val_loss', 'f1': 'val_f1'}
     trainer = Trainer(
+        max_epochs=-1,
         precision='16-mixed',
-        max_epochs=config['NUM_EPOCHS'],
-        logger=logger,
         callbacks=[
-            EarlyStopping(
-                monitor='val_loss',
-                mode='min',
-                min_delta=1e-2,
-                patience=5
-            ),
-            RichProgressBar(),
-            TimeLogger(logger)
+            RayTrainReportCallback(),
+            early_stopping
         ],
+        enable_checkpointing=False,
+        enable_progress_bar=False,
         enable_model_summary=False
     )
     
-    trainer.fit(model, data_module)
+    trainer.fit(model, datamodule)
+
+
+def custom_trial_name_creator(trial):
+    trial_id = trial.trial_id.split('_')[-1]
+    
+    return f'trial_{trial_id}'
+
+
+def main(config):
+    scaling_config = ScalingConfig(
+        num_workers=1,
+        use_gpu=True
+    )
+    checkpoint_config = CheckpointConfig(
+        num_to_keep=5,
+        checkpoint_score_attribute='val_f1',
+        checkpoint_score_order='max'
+    )
+    shutil.rmtree(
+        os.path.join(project_path, 'results', RUN_NAME),
+        ignore_errors=True
+    )
+    run_config = RunConfig(
+        checkpoint_config=checkpoint_config,
+        name=RUN_NAME,
+        storage_path=os.path.join(project_path, 'results')
+    )
+    ray_trainer = TorchTrainer(
+        train_fn,
+        scaling_config=scaling_config,
+        run_config=run_config
+    )
+    tune_config = TuneConfig(
+        trial_dirname_creator=custom_trial_name_creator
+    )
+    tuner = Tuner(
+        trainable=ray_trainer,
+        param_space={'train_loop_config': config},
+        tune_config=tune_config
+    )
+    
+    tuner.fit()
 
 if __name__ == '__main__':
-    main()
+    main(config)

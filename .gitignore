@@ -1,8 +1,7 @@
-dataset*
-reference_genome.fasta
+data/dataset_*
+data/reference_genome.fasta
 results
 .ipynb_checkpoints
-script.py
-exoiii_dataset/exo.sam
-exoiii_dataset/exo.bam
+scripts/__pycache__/*
+signal_dist.png
 
