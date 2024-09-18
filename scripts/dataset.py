@@ -1,7 +1,7 @@
 import os
-import pickle
 import torch
 import numpy as np
+import pandas as pd
 from torch.utils.data import Dataset, DataLoader, random_split
 from lightning.pytorch.core import LightningDataModule
 
@@ -110,7 +110,7 @@ class DataModule(LightningDataModule):
         super().__init__()
         
         self.dataset_number = config['DATASET_NUMBER']
-        self.dataset_prefix = config['DATASET_PREFIX']
+        self.k = config['K']
         self.batch_size = config['BATCH_SIZE']
         self.num_workers = config['NUM_WORKERS']
         self.path = project_path
@@ -121,28 +121,31 @@ class DataModule(LightningDataModule):
             'data',
             f'dataset_{self.dataset_number}',
             'cache',
-            'templates.pickle'
+            'templates.txt'
         )
-        with open(templates_path, 'rb') as file:
-            templates = pickle.load(file)
+        with open(templates_path) as file:
+            templates = file.readlines()
         
         internal_dyad_positions_path = os.path.join(
             self.path,
             'data',
             f'dataset_{self.dataset_number}',
             'cache',
-            'internal_dyad_positions.pickle'
+            'internal_dyad_positions.txt'
         )
-        with open(internal_dyad_positions_path, 'rb') as file:
-            internal_dyad_positions = pickle.load(file)
+        internal_dyad_positions = pd.read_csv(
+            internal_dyad_positions_path,
+            header=None
+        )
+        internal_dyad_positions = internal_dyad_positions.map(lambda x: x[1:-1].split(', '))
         
         self.mean_target_length = internal_dyad_positions.apply(len).mean()
         
-        if self.dataset_prefix == 'default':
+        if self.k == 1:
             dataset = DefaultDataset(templates, internal_dyad_positions)
-        elif self.dataset_prefix == 'bigram':
+        elif self.k == 2:
             dataset = BigramDataset(templates, internal_dyad_positions)
-        elif self.dataset_prefix == 'trigram':
+        elif self.k == 3:
             dataset = TrigramDataset(templates, internal_dyad_positions)
         
         train_size = int(0.6 * len(dataset))
@@ -170,3 +173,6 @@ class DataModule(LightningDataModule):
 
     def test_dataloader(self):
         return self._common_dataloader('test')
+    
+    def predict_dataloader(self):
+        return self._common_dataloader('predict')

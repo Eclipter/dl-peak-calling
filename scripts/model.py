@@ -1,23 +1,16 @@
 import torch
-import torchmetrics
 import torch.nn.functional as F
 from torch import nn, optim
 from lightning.pytorch.core import LightningModule
+from torchmetrics.classification import BinaryF1Score
 
 
 class BiGRU(LightningModule):
     def __init__(self, config, mean_target_length):
         super().__init__()
         
-        str_to_idx = {
-            'default': 1,
-            'bigram': 2,
-            'trigram': 3
-        }
-        ngram_symbol_num = str_to_idx[config['DATASET_PREFIX']]
-        
         self.bigru = nn.GRU(
-            input_size=4**ngram_symbol_num,
+            input_size=4**config['K'],
             hidden_size=config['HIDDEN_SIZE'],
             num_layers=config['NUM_LAYERS'],
             batch_first=True,
@@ -25,16 +18,12 @@ class BiGRU(LightningModule):
         ) # (batch_size, length, hidden_size * 2)
         self.fc = nn.Linear(config['HIDDEN_SIZE'] * 2, 1) # (batch_size, length)
         
-        pos_weight = torch.tensor((201-ngram_symbol_num) / mean_target_length)
+        pos_weight = torch.tensor((201-config['K']) / mean_target_length)
         self.loss_fn = nn.BCEWithLogitsLoss(pos_weight=pos_weight)
         self.lr = config['LR']
         self.weight_decay = config['WEIGHT_DECAY']
         
-        self.f1_scorer = torchmetrics.F1Score(
-            task='multilabel',
-            num_labels=201-ngram_symbol_num,
-            average='weighted'
-        )
+        self.f1_scorer = BinaryF1Score()
     
     def forward(self, x):
         bigru_output, _ = self.bigru(x)
@@ -46,11 +35,11 @@ class BiGRU(LightningModule):
         X_batch, y_batch = batch
 
         logits = self.forward(X_batch)
-        y_proba = F.sigmoid(logits)
+        y_probas = F.sigmoid(logits)
         
         loss = self.loss_fn(logits, y_batch)
         
-        f1 = self.f1_scorer(y_proba, y_batch)
+        f1 = self.f1_scorer(y_probas, y_batch)
         
         self.log_dict(
             {
@@ -72,6 +61,14 @@ class BiGRU(LightningModule):
 
     def test_step(self, batch, batch_idx):
         return self._common_step(batch, 'test')
+    
+    def predict_step(self, batch, batch_idx):
+        X_batch, y_batch = batch
+
+        logits = self.forward(X_batch)
+        y_probas = F.sigmoid(logits)
+        
+        return y_probas
     
     def configure_optimizers(self):
         return optim.Adam(

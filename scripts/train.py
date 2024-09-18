@@ -26,7 +26,6 @@ def train_fn(config):
     
     early_stopping = EarlyStopping(
         monitor='val_loss',
-        min_delta=0.001,
         patience=5
     )
     datamodule = DataModule(
