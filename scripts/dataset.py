@@ -110,7 +110,7 @@ class DataModule(LightningDataModule):
         super().__init__()
         
         self.dataset_number = config['DATASET_NUMBER']
-        self.dataset_prefix = config['DATASET_PREFIX']
+        self.k = config['K']
         self.batch_size = config['BATCH_SIZE']
         self.num_workers = config['NUM_WORKERS']
         self.path = project_path
@@ -138,11 +138,11 @@ class DataModule(LightningDataModule):
         
         self.mean_target_length = internal_dyad_positions.apply(len).mean()
         
-        if self.dataset_prefix == 'default':
+        if self.k == 1:
             dataset = DefaultDataset(templates, internal_dyad_positions)
-        elif self.dataset_prefix == 'bigram':
+        elif self.k == 2:
             dataset = BigramDataset(templates, internal_dyad_positions)
-        elif self.dataset_prefix == 'trigram':
+        elif self.k == 3:
             dataset = TrigramDataset(templates, internal_dyad_positions)
         
         train_size = int(0.6 * len(dataset))

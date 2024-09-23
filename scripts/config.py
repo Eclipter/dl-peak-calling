@@ -1,6 +1,6 @@
 from ray.tune import grid_search
 
-RUN_NAME = 'final_search'
+RUN_NAME = 'test'
 
 config = {
     # Model hyperparameters
@@ -11,7 +11,7 @@ config = {
 
     # Dataset hyperparameters
     'DATASET_NUMBER': 1,
-    'DATASET_PREFIX': grid_search(['bigram', 'trigram']),
+    'K': grid_search([2, 3]),
     'BATCH_SIZE': 2048,
     'NUM_WORKERS': 16,
 }
