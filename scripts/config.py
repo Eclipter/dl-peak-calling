@@ -11,7 +11,7 @@ config = {
 
     # Dataset hyperparameters
     'DATASET_NUMBER': 1,
-    'K': grid_search([2, 3]),
+    'K': 3,
     'BATCH_SIZE': 2048,
     'NUM_WORKERS': 16,
 }

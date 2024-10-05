@@ -13,6 +13,7 @@ project_path = os.path.abspath('..')
 
 
 def main(run_name):
+    # To satisfy Lightning
     torch.set_float32_matmul_precision('medium')
     
     experiment_path = os.path.join('file://', project_path, 'results', run_name)
@@ -36,6 +37,9 @@ def main(run_name):
         best_config,
         project_path
     )
+    
+    # A workaround to calculate class ratio and pass it to the model
+    # so a loss function can level it out
     datamodule.setup('test')
     model = BiGRU.load_from_checkpoint(
         best_checkpoint_path,
